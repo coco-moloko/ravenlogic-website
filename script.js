@@ -311,6 +311,124 @@ function setupFloatingAnimation() {
         // Add random delays and durations for more natural movement
         card.style.animationDuration = `${6 + (index * 0.5)}s`;
         card.style.animationDelay = `${index * 2}s`;
+        
+        // Make cards draggable
+        makeDraggable(card);
+    });
+}
+
+// Make floating cards draggable
+function makeDraggable(element) {
+    let isDragging = false;
+    let startX, startY, initialX, initialY;
+    
+    // Add cursor pointer to indicate interactivity
+    element.style.cursor = 'grab';
+    element.style.userSelect = 'none';
+    element.style.position = 'relative';
+    element.style.zIndex = '10';
+    
+    // Mouse events
+    element.addEventListener('mousedown', startDrag);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', endDrag);
+    
+    // Touch events for mobile
+    element.addEventListener('touchstart', startDrag, { passive: false });
+    document.addEventListener('touchmove', drag, { passive: false });
+    document.addEventListener('touchend', endDrag);
+    
+    function startDrag(e) {
+        isDragging = true;
+        element.style.cursor = 'grabbing';
+        element.style.animation = 'none'; // Pause floating animation while dragging
+        element.style.transition = 'none'; // Remove transitions for smooth dragging
+        
+        // Get initial positions
+        const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+        
+        startX = clientX;
+        startY = clientY;
+        
+        // Get current position
+        const rect = element.getBoundingClientRect();
+        const parentRect = element.parentElement.getBoundingClientRect();
+        initialX = rect.left - parentRect.left;
+        initialY = rect.top - parentRect.top;
+        
+        e.preventDefault();
+    }
+    
+    function drag(e) {
+        if (!isDragging) return;
+        
+        e.preventDefault();
+        
+        const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+        
+        // Calculate new position
+        const deltaX = clientX - startX;
+        const deltaY = clientY - startY;
+        
+        const newX = initialX + deltaX;
+        const newY = initialY + deltaY;
+        
+        // Get parent container boundaries
+        const parent = element.parentElement;
+        const parentRect = parent.getBoundingClientRect();
+        const elementRect = element.getBoundingClientRect();
+        
+        // Constrain to parent boundaries
+        const maxX = parentRect.width - elementRect.width;
+        const maxY = parentRect.height - elementRect.height;
+        
+        const constrainedX = Math.max(0, Math.min(newX, maxX));
+        const constrainedY = Math.max(0, Math.min(newY, maxY));
+        
+        // Apply transform
+        element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
+    }
+    
+    function endDrag() {
+        if (!isDragging) return;
+        
+        isDragging = false;
+        element.style.cursor = 'grab';
+        
+        // Add some bounce-back animation
+        element.style.transition = 'transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+        
+        // Optionally snap back to original position after a delay
+        // setTimeout(() => {
+        //     element.style.transform = '';
+        //     element.style.animation = ''; // Resume floating animation
+        // }, 3000);
+    }
+    
+    // Add hover effects
+    element.addEventListener('mouseenter', () => {
+        if (!isDragging) {
+            element.style.transform += ' scale(1.05)';
+            element.style.transition = 'transform 0.2s ease';
+        }
+    });
+    
+    element.addEventListener('mouseleave', () => {
+        if (!isDragging) {
+            element.style.transform = element.style.transform.replace(' scale(1.05)', '');
+        }
+    });
+    
+    // Double-click to reset position
+    element.addEventListener('dblclick', () => {
+        element.style.transition = 'transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+        element.style.transform = '';
+        
+        setTimeout(() => {
+            element.style.animation = ''; // Resume floating animation
+        }, 500);
     });
 }
 
