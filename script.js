@@ -317,16 +317,299 @@ function setupFloatingAnimation() {
     });
 }
 
+// Ultra-smooth return to origin using requestAnimationFrame and easing
+function startReturnToOrigin(card) {
+    // Get starting position
+    const currentTransform = card.style.transform;
+    const translateMatch = currentTransform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
+    
+    let startX = 0, startY = 0;
+    if (translateMatch) {
+        startX = parseFloat(translateMatch[1]) || 0;
+        startY = parseFloat(translateMatch[2]) || 0;
+    }
+    
+    // If already close to origin, don't bother
+    const distanceFromOrigin = Math.sqrt(startX * startX + startY * startY);
+    if (distanceFromOrigin < 3) {
+        return;
+    }
+    
+    // Cancel any existing animation
+    if (card.returnAnimation) {
+        cancelAnimationFrame(card.returnAnimation);
+        card.returnAnimation = null;
+    }
+    
+    // Animation parameters
+    const duration = 3000; // 3 seconds for return journey
+    const startTime = performance.now();
+    
+    // Store initial position
+    const initialX = startX;
+    const initialY = startY;
+    
+    // Smooth easing function (ease-out cubic)
+    function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+    }
+    
+    function animateReturn(currentTime) {
+        // Stop if being dragged
+        if (card.dataset.isDragging === 'true') {
+            card.returnAnimation = null;
+            return;
+        }
+        
+        // Calculate progress (0 to 1)
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Apply easing
+        const easedProgress = easeOutCubic(progress);
+        
+        // Calculate current position (interpolate from start to origin)
+        const currentX = initialX * (1 - easedProgress);
+        const currentY = initialY * (1 - easedProgress);
+        
+        // Apply position without transition for smooth 60fps movement
+        card.style.transition = 'none';
+        const scale = card.style.transform.includes('scale') ? ' scale(1.05)' : ' scale(1)';
+        card.style.transform = `translate(${currentX}px, ${currentY}px)${scale}`;
+        
+        // Continue animation or finish
+        if (progress < 1) {
+            card.returnAnimation = requestAnimationFrame(animateReturn);
+        } else {
+            // Animation complete - snap to exact origin
+            card.style.transition = 'transform 0.2s ease-out';
+            card.style.transform = `translate(0px, 0px)${scale}`;
+            
+            // Resume floating animation after a brief moment
+            setTimeout(() => {
+                card.style.transition = '';
+                card.style.animation = ''; // Resume floating animation
+            }, 200);
+            
+            card.returnAnimation = null;
+        }
+    }
+    
+    // Start the smooth animation
+    card.returnAnimation = requestAnimationFrame(animateReturn);
+}
+
+// Simple bumper car collision - instant, smooth bump with simple boundary constraints
+function bumpCard(card, deltaX, deltaY) {
+    // Get current position
+    const currentTransform = card.style.transform;
+    const translateMatch = currentTransform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
+    
+    let currentX = 0, currentY = 0;
+    if (translateMatch) {
+        currentX = parseFloat(translateMatch[1]) || 0;
+        currentY = parseFloat(translateMatch[2]) || 0;
+    }
+    
+    // Calculate new position
+    let newX = currentX + deltaX;
+    let newY = currentY + deltaY;
+    
+    // Simple boundary check using current card position
+    const cardRect = card.getBoundingClientRect();
+    const heroSection = document.querySelector('.hero');
+    const navbar = document.querySelector('.navbar');
+    const heroRect = heroSection.getBoundingClientRect();
+    const navbarRect = navbar.getBoundingClientRect();
+    
+    // Calculate where the card would be after the bump
+    const futureCardLeft = cardRect.left + deltaX;
+    const futureCardRight = cardRect.right + deltaX;
+    const futureCardTop = cardRect.top + deltaY;
+    const futureCardBottom = cardRect.bottom + deltaY;
+    
+    // Define safe boundaries with padding
+    const leftBoundary = heroRect.left + (heroRect.width * 0.5) + 20; // Right 50% + padding
+    const rightBoundary = heroRect.right - 20; // Right edge - padding
+    const topBoundary = heroRect.top + navbarRect.height + 20; // Below navbar + padding
+    const bottomBoundary = heroRect.bottom - 20; // Bottom - padding
+    
+    // Constrain movement if it would go outside boundaries
+    if (futureCardLeft < leftBoundary) {
+        newX = currentX; // Don't move if it would go too far left
+    }
+    if (futureCardRight > rightBoundary) {
+        newX = currentX; // Don't move if it would go too far right
+    }
+    if (futureCardTop < topBoundary) {
+        newY = currentY; // Don't move if it would go too high
+    }
+    if (futureCardBottom > bottomBoundary) {
+        newY = currentY; // Don't move if it would go too low
+    }
+    
+    // Apply with smooth transition
+    card.style.transition = 'transform 0.2s ease-out';
+    const scale = card.style.transform.includes('scale') ? ' scale(1.05)' : ' scale(1)';
+    card.style.transform = `translate(${newX}px, ${newY}px)${scale}`;
+    
+    // Clear transition quickly
+    setTimeout(() => {
+        card.style.transition = '';
+    }, 200);
+}
+
+// Smoothly push a card with very gentle animation to prevent jerkiness
+function pushCardSmoothly(card, deltaX, deltaY) {
+    // Skip very small movements to prevent micro-jitters
+    if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
+    
+    // Throttle pushes per card to prevent over-animation
+    if (!card.lastPushTime) card.lastPushTime = 0;
+    const now = Date.now();
+    if (now - card.lastPushTime < 50) return; // Max 20 pushes per second per card
+    card.lastPushTime = now;
+    
+    // Get current transform values
+    const currentTransform = card.style.transform;
+    const translateMatch = currentTransform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
+    
+    let currentX = 0, currentY = 0;
+    if (translateMatch) {
+        currentX = parseFloat(translateMatch[1]) || 0;
+        currentY = parseFloat(translateMatch[2]) || 0;
+    }
+    
+    // Calculate new position with heavy dampening for ultra-smooth movement
+    const dampening = 0.3; // Heavy dampening for smooth movement
+    const newX = currentX + (deltaX * dampening);
+    const newY = currentY + (deltaY * dampening);
+    
+    // Get boundary constraints for the pushed card
+    const heroSection = document.querySelector('.hero');
+    const navbar = document.querySelector('.navbar');
+    const heroRect = heroSection.getBoundingClientRect();
+    const navbarRect = navbar.getBoundingClientRect();
+    
+    // Get card's original position
+    const tempTransform = card.style.transform;
+    card.style.transform = 'none';
+    const originalRect = card.getBoundingClientRect();
+    card.style.transform = tempTransform;
+    
+    const heroWidth = heroRect.width;
+    const leftBoundary = heroRect.left + (heroWidth * 0.5);
+    const rightBoundary = heroRect.right;
+    const topBoundary = heroRect.top + navbarRect.height;
+    const bottomBoundary = heroRect.bottom;
+    
+    // Calculate movement limits
+    const leftEdgeDistance = originalRect.left - leftBoundary;
+    const topEdgeDistance = originalRect.top - topBoundary;
+    const rightEdgeDistance = rightBoundary - originalRect.right;
+    const bottomEdgeDistance = bottomBoundary - originalRect.bottom;
+    
+    const padding = 20;
+    const minX = -leftEdgeDistance + padding;
+    const maxX = rightEdgeDistance - padding;
+    const minY = -topEdgeDistance + padding;
+    const maxY = bottomEdgeDistance - padding;
+    
+    // Constrain the new position
+    const constrainedX = Math.max(minX, Math.min(newX, maxX));
+    const constrainedY = Math.max(minY, Math.min(newY, maxY));
+    
+    // Apply ultra-smooth transition
+    card.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'; // Smooth easing
+    const scale = card.style.transform.includes('scale') ? ' scale(1.05)' : ' scale(1)';
+    card.style.transform = `translate(${constrainedX}px, ${constrainedY}px)${scale}`;
+    
+    // Remove transition after animation
+    setTimeout(() => {
+        if (card.dataset.isDragging !== 'true') {
+            card.style.transition = '';
+        }
+    }, 300);
+}
+
+// Legacy function kept for compatibility
+function pushCardGently(card, deltaX, deltaY) {
+    // Allow pushing even if being dragged for more interactive feel
+    
+    // Get current transform values
+    const currentTransform = card.style.transform;
+    const translateMatch = currentTransform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
+    
+    let currentX = 0, currentY = 0;
+    if (translateMatch) {
+        currentX = parseFloat(translateMatch[1]) || 0;
+        currentY = parseFloat(translateMatch[2]) || 0;
+    }
+    
+    // Calculate new position with minimal dampening for more responsive pushing
+    const dampening = 0.6; // Less dampening for more noticeable movement
+    const newX = currentX + (deltaX * dampening);
+    const newY = currentY + (deltaY * dampening);
+    
+    // Get boundary constraints for the pushed card
+    const heroSection = document.querySelector('.hero');
+    const navbar = document.querySelector('.navbar');
+    const heroRect = heroSection.getBoundingClientRect();
+    const navbarRect = navbar.getBoundingClientRect();
+    
+    // Get card's original position
+    const tempTransform = card.style.transform;
+    card.style.transform = 'none';
+    const originalRect = card.getBoundingClientRect();
+    card.style.transform = tempTransform;
+    
+    const heroWidth = heroRect.width;
+    const leftBoundary = heroRect.left + (heroWidth * 0.5);
+    const rightBoundary = heroRect.right;
+    const topBoundary = heroRect.top + navbarRect.height;
+    const bottomBoundary = heroRect.bottom;
+    
+    // Calculate movement limits
+    const leftEdgeDistance = originalRect.left - leftBoundary;
+    const topEdgeDistance = originalRect.top - topBoundary;
+    const rightEdgeDistance = rightBoundary - originalRect.right;
+    const bottomEdgeDistance = bottomBoundary - originalRect.bottom;
+    
+    const padding = 20;
+    const minX = -leftEdgeDistance + padding;
+    const maxX = rightEdgeDistance - padding;
+    const minY = -topEdgeDistance + padding;
+    const maxY = bottomEdgeDistance - padding;
+    
+    // Constrain the new position
+    const constrainedX = Math.max(minX, Math.min(newX, maxX));
+    const constrainedY = Math.max(minY, Math.min(newY, maxY));
+    
+    // Apply the new position with very smooth animation
+    card.style.transition = 'transform 0.15s ease-out';
+    const scale = card.style.transform.includes('scale') ? ' scale(1.05)' : ' scale(1)';
+    card.style.transform = `translate(${constrainedX}px, ${constrainedY}px)${scale}`;
+    
+    // Remove transition after animation
+    setTimeout(() => {
+        if (card.dataset.isDragging !== 'true') {
+            card.style.transition = '';
+        }
+    }, 150);
+}
+
 // Make floating cards draggable
 function makeDraggable(element) {
     let isDragging = false;
     let startX, startY, initialX, initialY;
+    let currentX = 0, currentY = 0;
+    let isHovered = false;
     
     // Add cursor pointer to indicate interactivity
     element.style.cursor = 'grab';
     element.style.userSelect = 'none';
     element.style.position = 'relative';
-    element.style.zIndex = '10';
+    element.style.zIndex = '100'; // Same z-index for all cards to ensure equal interaction
     
     // Mouse events
     element.addEventListener('mousedown', startDrag);
@@ -338,11 +621,33 @@ function makeDraggable(element) {
     document.addEventListener('touchmove', drag, { passive: false });
     document.addEventListener('touchend', endDrag);
     
+    function updateTransform() {
+        const scale = isHovered && !isDragging ? 'scale(1.05)' : 'scale(1)';
+        element.style.transform = `translate(${currentX}px, ${currentY}px) ${scale}`;
+    }
+    
     function startDrag(e) {
         isDragging = true;
+        element.dataset.isDragging = 'true'; // Mark as being dragged for collision system
         element.style.cursor = 'grabbing';
         element.style.animation = 'none'; // Pause floating animation while dragging
         element.style.transition = 'none'; // Remove transitions for smooth dragging
+        element.style.zIndex = '101'; // Slightly higher when being dragged
+        
+        // Cancel any return-to-origin animation
+        if (element.returnAnimation) {
+            cancelAnimationFrame(element.returnAnimation);
+            element.returnAnimation = null;
+        }
+        
+        // Get the actual current position from the transform (in case of animation interruption)
+        const currentTransform = element.style.transform;
+        const translateMatch = currentTransform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/);
+        
+        if (translateMatch) {
+            currentX = parseFloat(translateMatch[1]) || 0;
+            currentY = parseFloat(translateMatch[2]) || 0;
+        }
         
         // Get initial positions
         const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
@@ -350,13 +655,10 @@ function makeDraggable(element) {
         
         startX = clientX;
         startY = clientY;
+        initialX = currentX;
+        initialY = currentY;
         
-        // Get current position
-        const rect = element.getBoundingClientRect();
-        const parentRect = element.parentElement.getBoundingClientRect();
-        initialX = rect.left - parentRect.left;
-        initialY = rect.top - parentRect.top;
-        
+        updateTransform();
         e.preventDefault();
     }
     
@@ -375,61 +677,162 @@ function makeDraggable(element) {
         const newX = initialX + deltaX;
         const newY = initialY + deltaY;
         
-        // Get parent container boundaries
-        const parent = element.parentElement;
-        const parentRect = parent.getBoundingClientRect();
+        // Get boundary containers
+        const heroSection = document.querySelector('.hero');
+        const navbar = document.querySelector('.navbar');
+        const heroRect = heroSection.getBoundingClientRect();
+        const navbarRect = navbar.getBoundingClientRect();
         const elementRect = element.getBoundingClientRect();
         
-        // Constrain to parent boundaries
-        const maxX = parentRect.width - elementRect.width;
-        const maxY = parentRect.height - elementRect.height;
+        // Get the element's original position (before any transforms)
+        const tempTransform = element.style.transform;
+        element.style.transform = 'none';
+        const originalRect = element.getBoundingClientRect();
+        element.style.transform = tempTransform;
         
-        const constrainedX = Math.max(0, Math.min(newX, maxX));
-        const constrainedY = Math.max(0, Math.min(newY, maxY));
+        // Calculate boundaries for full hero height but only right 50% width
+        const heroWidth = heroRect.width;
         
-        // Apply transform
-        element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
+        // Right 50% of the hero section (where visual content should stay)
+        const leftBoundary = heroRect.left + (heroWidth * 0.5); // Start at 50% mark
+        const rightBoundary = heroRect.right;
+        
+        // Top boundary should be below the navbar to avoid overlap
+        const navbarHeight = navbarRect.height;
+        const topBoundary = heroRect.top + navbarHeight; // Start below navbar
+        const bottomBoundary = heroRect.bottom;
+        
+        // Calculate how far the element can move from its original position
+        const leftEdgeDistance = originalRect.left - leftBoundary;
+        const topEdgeDistance = originalRect.top - topBoundary;
+        const rightEdgeDistance = rightBoundary - originalRect.right;
+        const bottomEdgeDistance = bottomBoundary - originalRect.bottom;
+        
+        // Set boundaries with padding
+        const padding = 20; // 20px padding from edges
+        let minX = -leftEdgeDistance + padding; // Can't go into left 50%
+        let maxX = rightEdgeDistance - padding; // Stay within right boundary
+        let minY = -topEdgeDistance + padding; // Stay below navbar
+        let maxY = bottomEdgeDistance - padding; // Can move to bottom of hero
+        
+        // Apply initial boundary constraints
+        let constrainedX = Math.max(minX, Math.min(newX, maxX));
+        let constrainedY = Math.max(minY, Math.min(newY, maxY));
+        
+        // Simple bumper car physics - check for overlaps and gently separate
+        const otherCards = document.querySelectorAll('.floating-card');
+        
+        otherCards.forEach(otherCard => {
+            if (otherCard === element) return; // Skip self
+            
+            // Get current positions
+            const otherRect = otherCard.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+            
+            // Calculate where this element will be
+            const futureLeft = originalRect.left + constrainedX;
+            const futureTop = originalRect.top + constrainedY;
+            const futureRight = futureLeft + elementRect.width;
+            const futureBottom = futureTop + elementRect.height;
+            
+            // Check for actual overlap with some padding
+            const padding = 30; // Cards start pushing when 30px apart
+            const overlapping = futureLeft < otherRect.right + padding &&
+                               futureRight > otherRect.left - padding &&
+                               futureTop < otherRect.bottom + padding &&
+                               futureBottom > otherRect.top - padding;
+            
+            if (overlapping) {
+                // Calculate centers
+                const futureCenterX = futureLeft + elementRect.width / 2;
+                const futureCenterY = futureTop + elementRect.height / 2;
+                const otherCenterX = otherRect.left + otherRect.width / 2;
+                const otherCenterY = otherRect.top + otherRect.height / 2;
+                
+                // Calculate separation direction
+                const deltaX = otherCenterX - futureCenterX;
+                const deltaY = otherCenterY - futureCenterY;
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                
+                if (distance > 0) {
+                    // Normalize direction
+                    const dirX = deltaX / distance;
+                    const dirY = deltaY / distance;
+                    
+                    // Push the other card away with gentle force
+                    const pushForce = 15; // Fixed, gentle push
+                    bumpCard(otherCard, dirX * pushForce, dirY * pushForce);
+                }
+            }
+        });
+        
+        // Final boundary check after collision resolution
+        currentX = Math.max(minX, Math.min(constrainedX, maxX));
+        currentY = Math.max(minY, Math.min(constrainedY, maxY));
+        
+        updateTransform();
     }
     
     function endDrag() {
         if (!isDragging) return;
         
         isDragging = false;
+        element.dataset.isDragging = 'false'; // Mark as no longer being dragged
         element.style.cursor = 'grab';
+        element.style.zIndex = '100'; // Back to normal z-index
         
         // Add some bounce-back animation
         element.style.transition = 'transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+        updateTransform();
         
-        // Optionally snap back to original position after a delay
-        // setTimeout(() => {
-        //     element.style.transform = '';
-        //     element.style.animation = ''; // Resume floating animation
-        // }, 3000);
+        // Remove transition after animation completes
+        setTimeout(() => {
+            if (!isDragging) {
+                element.style.transition = 'transform 0.2s ease';
+            }
+        }, 300);
+        
+        // Start gradual return to origin after a delay
+        setTimeout(() => {
+            if (!isDragging) {
+                startReturnToOrigin(element);
+            }
+        }, 2000); // Wait 2 seconds before starting return
     }
     
-    // Add hover effects
+    // Add hover effects with proper transform handling
     element.addEventListener('mouseenter', () => {
         if (!isDragging) {
-            element.style.transform += ' scale(1.05)';
+            isHovered = true;
             element.style.transition = 'transform 0.2s ease';
+            updateTransform();
         }
     });
     
     element.addEventListener('mouseleave', () => {
         if (!isDragging) {
-            element.style.transform = element.style.transform.replace(' scale(1.05)', '');
+            isHovered = false;
+            element.style.transition = 'transform 0.2s ease';
+            updateTransform();
         }
     });
     
     // Double-click to reset position
     element.addEventListener('dblclick', () => {
+        currentX = 0;
+        currentY = 0;
+        isHovered = false;
         element.style.transition = 'transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
-        element.style.transform = '';
+        updateTransform();
         
         setTimeout(() => {
             element.style.animation = ''; // Resume floating animation
+            element.style.transition = 'transform 0.2s ease';
         }, 500);
     });
+    
+    // Initialize transform
+    updateTransform();
 }
 
 // Initialize everything when DOM is loaded
