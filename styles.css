@@ -607,6 +607,126 @@ body {
     display: inline;
 }
 
+/* Coming Soon Page */
+.coming-soon {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+    color: white;
+    padding: 6rem 0;
+}
+
+.coming-soon-content {
+    text-align: center;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+.coming-soon-icon {
+    font-size: 4rem;
+    margin-bottom: 2rem;
+    opacity: 0.8;
+}
+
+.coming-soon h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(45deg, #fbbf24, #f59e0b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.coming-soon-description {
+    font-size: 1.2rem;
+    line-height: 1.8;
+    margin-bottom: 3rem;
+    opacity: 0.9;
+}
+
+.coming-soon-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 2rem;
+    margin-bottom: 3rem;
+}
+
+.coming-soon-features .feature {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+}
+
+.coming-soon-features .feature:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.coming-soon-features .feature i {
+    font-size: 1.5rem;
+    color: #f59e0b;
+}
+
+.coming-soon-features .feature span {
+    font-weight: 500;
+}
+
+.coming-soon-cta {
+    margin-top: 3rem;
+}
+
+.coming-soon-cta p {
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+    opacity: 0.9;
+}
+
+.coming-soon-cta .btn {
+    margin: 0 0.5rem;
+}
+
+.nav-link.active {
+    color: #1e40af !important;
+    font-weight: 600;
+}
+
+.nav-link.active::after {
+    width: 100%;
+    background: #f59e0b;
+}
+
+@media (max-width: 768px) {
+    .coming-soon h1 {
+        font-size: 2.5rem;
+    }
+    
+    .coming-soon-description {
+        font-size: 1.1rem;
+    }
+    
+    .coming-soon-features {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .coming-soon-cta .btn {
+        display: block;
+        margin: 0.5rem auto;
+        max-width: 300px;
+    }
+}
+
 /* Footer */
 .footer {
     background: #1f2937;
@@ -705,32 +825,37 @@ body {
         transform: translateY(-8px) rotate(-45deg);
     }
 
-    .hero-text-section,
-    .hero-visual-section {
+    .hero {
+        min-height: auto;
+        padding: 120px 20px 60px;
+        text-align: center;
+    }
+
+    .hero-text-section {
         width: 100%;
         float: none;
         text-align: center;
-        margin-bottom: 2rem;
+        align-items: center;
+        max-width: none;
+        margin: 0 auto;
+        padding: 0 20px;
     }
     
-    .hero-text-section {
-        align-items: center;
+    .hero-visual-section {
+        display: none;
     }
 
     .hero-title {
         font-size: 2.5rem;
+        margin-bottom: 1rem;
     }
 
-    .hero-visual-section {
-        order: -1;
-        flex-direction: row;
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-
-    .floating-card {
-        animation: none;
-        transform: none !important;
+    .hero-description {
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
     }
 
     .services-grid {
@@ -766,26 +891,27 @@ body {
 }
 
 @media (max-width: 480px) {
+    .hero {
+        padding: 100px 15px 50px;
+    }
+
     .hero-title {
         font-size: 2rem;
+        line-height: 1.1;
     }
 
     .hero-description {
         font-size: 1rem;
+        padding: 0 10px;
+    }
+
+    .hero-text-section {
+        padding: 0 10px;
     }
 
     .service-card,
     .contact-form {
         padding: 1.5rem;
-    }
-
-    .floating-card {
-        padding: 1rem 1.5rem;
-        font-size: 0.9rem;
-    }
-
-    .floating-card i {
-        font-size: 1.2rem;
     }
 }
 
